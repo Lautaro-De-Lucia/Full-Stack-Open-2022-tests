@@ -1,7 +1,22 @@
 const express = require('express')
+const cors = require('cors')
 const app = express()
 
+const requestLogger = (request, response, next) => {
+  console.log('Method:', request.method)
+  console.log('Path:  ', request.path)
+  console.log('Body:  ', request.body)
+  console.log('---')
+  next()
+}
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
 app.use(express.json())
+app.use(requestLogger)
+app.use(cors())
 
 let notes = [
   {
@@ -56,12 +71,44 @@ app.get('/api/notes', (request, response) => {
     response.status(204).end()
   })
   
+  const generateId = () => {
+    const maxId = notes.length > 0
+      ? Math.max(...notes.map(n => n.id))
+      : 0
+    return maxId + 1
+  }
+  
+
   app.post('/api/notes', (request, response) => {
-    const note = request.body
-    console.log(note)
+    const body = request.body
+  
+    if (!body.content) {
+      return response.status(400).json({  // Status code 400: BAD REQUEST
+        error: 'content missing' 
+      })
+    }
+  
+    const note = {
+      content: body.content,
+      important: body.important || false,
+      //  If the data saved in the body variable has the important property, 
+      //  the expression will evaluate to its value. If the property does not exist, 
+      //  then the expression will evaluate to false which is defined on the right-hand 
+      //  side of the vertical lines.
+      date: new Date(), 
+      //  it is better to generate timestamps on the server than in the browser, 
+      //  since we can't trust that host machine running the browser has its clock set correctly. 
+      id: generateId(),
+    }
+  
+    notes = notes.concat(note)
+  
     response.json(note)
   })
 
-const PORT = 3001
-app.listen(PORT)
-console.log(`Server running on port ${PORT}`)
+app.use(unknownEndpoint)
+
+const PORT = process.env.PORT || 3001
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
+})
